@@ -1,46 +1,40 @@
-// pair.js - تنفيذ أمر .dark لإرسال كود ربط جهاز حقيقي
+import { makeWASocket, useMultiFileAuthState } from '@whiskeysockets/baileys';
+import qrcode from 'qrcode';
 import fs from 'fs';
-import path from 'path';
-
-const IMAGE_PATH = path.resolve('./pairdark.jpg');
 
 export const handlePairCommand = async (sock, m, args, from, cmd) => {
   if (cmd !== '.dark') return;
 
-  const number = args[1];
-  if (!number || !/^20\d{9}$/.test(number)) {
+  if (!args[1]) {
     return await sock.sendMessage(from, {
-      text: '❗ اكتب رقم مصري صحيح بعد الأمر:\nمثال: .dark 201234567890'
+      text: '📌 اكتب رقم واتساب:\nمثال: `.dark 201000000000`'
     }, { quoted: m });
   }
 
-  try {
-    // ✅ جلب كود ربط جهاز فعلي
-    const code = await sock.requestPairingCode(number);
+  const number = args[1].replace(/\D/g, '');
+  const authPath = `./auths/${number}`;
+  if (!fs.existsSync('./auths')) fs.mkdirSync('./auths');
 
-    const caption = `🔗 *رابط الجهاز الحقيقي* 🔗
+  const { state, saveCreds } = await useMultiFileAuthState(authPath);
+  const newSock = makeWASocket({ auth: state });
 
-📞 رقم: wa.me/${number}
-📟 كود التنصيب: *${code}*
+  newSock.ev.on('connection.update', async ({ qr, connection }) => {
+    if (qr) {
+      const qrImage = await qrcode.toDataURL(qr);
+      const buffer = Buffer.from(qrImage.split(',')[1], 'base64');
 
-⚠️ أدخل هذا الكود في واتساب على الجهاز المطلوب لربطه فعليًا.
-`;
-
-    // ✅ إرسال صورة إن وجدت
-    if (fs.existsSync(IMAGE_PATH)) {
-      const imageBuffer = fs.readFileSync(IMAGE_PATH);
       await sock.sendMessage(from, {
-        image: imageBuffer,
-        caption
+        image: buffer,
+        caption: `🔗 امسح الكود من تطبيق واتساب لربط رقم *${number}*`,
       }, { quoted: m });
-    } else {
-      await sock.sendMessage(from, { text: caption }, { quoted: m });
     }
 
-  } catch (error) {
-    console.error('❌ فشل التنصيب:', error);
-    await sock.sendMessage(from, {
-      text: `❌ تعذر جلب كود التنصيب. السبب:\n${error.message}`
-    }, { quoted: m });
-  }
+    if (connection === 'open') {
+      await sock.sendMessage(from, {
+        text: `✅ تم ربط رقم *${number}* بنجاح. يمكنك الآن استخدام البوت من الرقم دا.`
+      }, { quoted: m });
+    }
+  });
+
+  newSock.ev.on('creds.update', saveCreds);
 };
