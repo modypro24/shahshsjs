@@ -1,25 +1,40 @@
-// ✅ pair.js import { makeWASocket, useMultiFileAuthState, DisconnectReason } from '@whiskeysockets/baileys'; import qrcode from 'qrcode';
+// pair.js
 
-export const handleRealInstall = async (sock, m, args, from) => { if (!args[1]) { return await sock.sendMessage(from, { text: '📲 اكتب رقمك المصري بعد الأمر:\nمثال: .dark 201000000000' }, { quoted: m }); }
+import qrcode from 'qrcode';
+import { useMultiFileAuthState, makeWASocket } from '@whiskeysockets/baileys';
 
-const target = args[1].replace(/\D/g, ''); if (!target.startsWith('2010') && !target.startsWith('2011') && !target.startsWith('2012') && !target.startsWith('2015')) { return await sock.sendMessage(from, { text: '❌ رقم غير مصري أو غير مدعوم للتنصيب الحقيقي.' }, { quoted: m }); }
+export const handlePairCommand = async (sock, m, args, from, cmd) => {
+  if (cmd === '.dark') {
+    const target = args[1];
+    if (!target || !/^01\d{9}$/.test(target)) {
+      return await sock.sendMessage(from, {
+        text: '📌 اكتب رقم مصري بعد الأمر بالشكل الصحيح:\nمثال: .dark 01012345678'
+      }, { quoted: m });
+    }
 
-// 🔐 أنشئ auth جديد لهذا الرقم const authPath = ./auth-${target}; const { state, saveCreds } = await useMultiFileAuthState(authPath);
+    const { state, saveCreds } = await useMultiFileAuthState(`./sessions/${target}`);
+    const tempSock = makeWASocket({
+      auth: state,
+      printQRInTerminal: false
+    });
 
-const tempSock = makeWASocket({ auth: state, printQRInTerminal: false, });
+    tempSock.ev.once('connection.update', async (update) => {
+      const { qr } = update;
+      if (qr) {
+        const qrImage = await qrcode.toBuffer(qr, { type: 'png' });
 
-tempSock.ev.once('connection.update', async ({ qr, connection }) => { if (qr) { const qrImage = await qrcode.toDataURL(qr); const base64 = qrImage.split(',')[1]; const buffer = Buffer.from(base64, 'base64');
+        await sock.sendMessage(from, {
+          image: qrImage,
+          caption: `🔗 امسح هذا الكود من رقمك ${target} خلال دقيقة لربط البوت.`
+        }, { quoted: m });
 
-await sock.sendMessage(from, {
-    image: buffer,
-    caption: 🔒 امسح هذا الكود من واتساب على جهازك الجديد لتثبيت البوت الحقيقي.,
-  }, { quoted: m });
-}
+        setTimeout(() => {
+          try {
+            tempSock.end();
+          } catch {}
+        }, 60000);
+      }
+    });
+  }
+};
 
-if (connection === 'open') {
-  await sock.sendMessage(from, { text: ✅ تم ربط الجهاز بنجاح مع الرقم ${target} });
-}
-
-});
-
-tempSock.ev.on('creds.update', saveCreds); };
