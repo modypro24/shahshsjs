@@ -1,64 +1,46 @@
+// pair.js - تنفيذ أمر .dark لإرسال كود ربط جهاز حقيقي
 import fs from 'fs';
 import path from 'path';
 
-const PAIR_CODES_PATH = './pair-codes.json';
 const IMAGE_PATH = path.resolve('./pairdark.jpg');
 
-const handlePairCommand = async (sock, m, args, from, cmd) => {
-  if (cmd !== '.pair') return;
+export const handlePairCommand = async (sock, m, args, from, cmd) => {
+  if (cmd !== '.dark') return;
 
   const number = args[1];
-  if (!number || !/^\d{10,15}$/.test(number)) {
-    return sock.sendMessage(from, {
-      text: '❗ من فضلك اكتب الأمر بهذا الشكل:\n\n.pair 201234567890'
+  if (!number || !/^20\d{9}$/.test(number)) {
+    return await sock.sendMessage(from, {
+      text: '❗ اكتب رقم مصري صحيح بعد الأمر:\nمثال: .dark 201234567890'
     }, { quoted: m });
   }
 
-  const code = Math.floor(10000000 + Math.random() * 90000000);
+  try {
+    // ✅ جلب كود ربط جهاز فعلي
+    const code = await sock.requestPairingCode(number);
 
-  const caption = `🌌 *ربط الجهاز* 🌌
+    const caption = `🔗 *رابط الجهاز الحقيقي* 🔗
 
-🔗 رقم الهاتف: wa.me/${number}
-📟 كود الربط: *${code}*
+📞 رقم: wa.me/${number}
+📟 كود التنصيب: *${code}*
 
-📥 انسخ الكود وادخله في تطبيق البوت لإتمام الربط.
+⚠️ أدخل هذا الكود في واتساب على الجهاز المطلوب لربطه فعليًا.
 `;
 
-  try {
-    if (!fs.existsSync(IMAGE_PATH)) {
-      throw new Error('❌ الصورة pairdark.jpg غير موجودة في المجلد.');
+    // ✅ إرسال صورة إن وجدت
+    if (fs.existsSync(IMAGE_PATH)) {
+      const imageBuffer = fs.readFileSync(IMAGE_PATH);
+      await sock.sendMessage(from, {
+        image: imageBuffer,
+        caption
+      }, { quoted: m });
+    } else {
+      await sock.sendMessage(from, { text: caption }, { quoted: m });
     }
 
-    const imageBuffer = fs.readFileSync(IMAGE_PATH);
-
+  } catch (error) {
+    console.error('❌ فشل التنصيب:', error);
     await sock.sendMessage(from, {
-      image: imageBuffer,
-      caption
-    }, { quoted: m });
-
-    let data = {};
-    if (fs.existsSync(PAIR_CODES_PATH)) {
-      try {
-        data = JSON.parse(fs.readFileSync(PAIR_CODES_PATH, 'utf8'));
-      } catch {
-        data = {};
-      }
-    }
-
-    data[number] = {
-      code,
-      timestamp: new Date().toISOString()
-    };
-
-    fs.writeFileSync(PAIR_CODES_PATH, JSON.stringify(data, null, 2));
-
-  } catch (err) {
-    console.error('❌ خطأ في إرسال كود الربط:', err.message);
-    await sock.sendMessage(from, {
-      text: '❌ فشل في إرسال كود الربط أو تحميل الصورة. تأكد من وجود "pairdark.jpg".'
+      text: `❌ تعذر جلب كود التنصيب. السبب:\n${error.message}`
     }, { quoted: m });
   }
 };
-
-// ✅ تصدير الدالة بالشكل الصحيح
-export { handlePairCommand };
