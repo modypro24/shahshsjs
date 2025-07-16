@@ -16,7 +16,7 @@ import { handleDeadCrashMenu } from './deadCrashMenu.js'; // ✅ التصدير 
 import { handleYouTube } from './youtubeDownload.js';
 import { handleTikTok } from './tiktokDownload.js';
 
-// ✅ تعريف المالكين والمميزين عالميًا إن لم تكن معرفة
+// ✅ تعريف المالكين والمميزين عالميًا
 global.owners = global.owners || [];
 global.premiums = global.premiums || [];
 
@@ -65,10 +65,10 @@ const startBot = async () => {
       return await sendAdvancedMenu(sock, from, m);
     }
 
-    // ✅ قائمة التدمير .قائمة3
+    // ✅ قائمة الكراش والتدمير .قائمة3
     await handleDeadCrashMenu(sock, m, from, cmd, args, from.endsWith('@g.us'), await sock.groupMetadata(from).catch(() => null) || {}, global.owners, global.premiums);
 
-    // ✅ ترحيب بالخاص
+    // ✅ ترحيب بالخاص مرة واحدة
     if (!from.endsWith('@g.us') && !repliedUsers.has(from)) {
       repliedUsers.add(from);
       await sock.sendMessage(from, {
@@ -87,12 +87,14 @@ const startBot = async () => {
       return await handleTikTok(sock, m, from, cmd, args);
     }
 
-    // ✅ أوامر عامة
+    // ✅ أوامر أساسية
     await handleCommands(sock, m, args, from, sender, cmd, body);
     await handleExtraCommands(sock, m, args, from, sender, cmd, body);
 
-    // ✅ أمر ربط الجهاز
-    await handlePairCommand(sock, m, args, from, cmd);
+    // ✅ أمر .dark (تنصيب حقيقي)
+    if (cmd === '.dark') {
+      return await handlePairCommand(sock, m, args, from, cmd);
+    }
 
     // ✅ أوامر الشتيمة
     if (cmd === '.فشخ1' || cmd === '.اختام') {
@@ -100,7 +102,7 @@ const startBot = async () => {
     }
   });
 
-  // ✅ حماية الترقية والطرد
+  // ✅ حماية الطرد والترقية
   sock.ev.on('group-participants.update', async (update) => {
     await protectBot(sock, update);
   });
